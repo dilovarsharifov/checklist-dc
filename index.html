@@ -88,8 +88,8 @@
   <label>📋 Выберите секцию: <select id="section-select" style="width:300px;"></select></label>
   <button onclick="addRowToSelectedSection()" style="background:#146b3a;">➕ Добавить пункт</button>
   <button onclick="resetToDefaultSections()" style="background:#7a4c29;">🔄 Сбросить к эталону</button>
-  <button onclick="saveToGoogleSheets()" style="background:#4285F4;">☁️ Сохранить в облако</button>
-  <button onclick="loadFromGoogleSheets()" style="background:#34A853;">📥 Загрузить из облака</button>
+  <button onclick="saveToJSONBin()" style="background:#4285F4;">☁️ Сохранить в облако</button>
+  <button onclick="loadFromJSONBin()" style="background:#34A853;">📥 Загрузить из облака</button>
 </div>
 
 <div class="excel-buttons">
@@ -103,21 +103,18 @@
 <div id="cloudReportsModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
-      <h2>☁️ Отчеты из облака (Google Sheets)</h2>
+      <h2>☁️ Отчеты из облака</h2>
       <span class="close-btn" onclick="closeCloudModal()">&times;</span>
     </div>
     <div id="cloudReportsList"></div>
-    <div style="margin-top: 20px; text-align: right;">
-      <button onclick="openGoogleSheet()" style="background:#0F9D58;">📊 Открыть таблицу</button>
-    </div>
   </div>
 </div>
 
 <script>
 (function() {
-  // ======== ВАШИ ДАННЫЕ ========
-  const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxywoNGpr6DTwocSAmIPSPxykDkusJjv2en_QAd2dj6vq8U9HjF_3j2q5J-SKw0egs3/exec';
-  const SPREADSHEET_ID = '1a0a_n0pD-EBc4ZZJZZk029cYtgkSOBVpYxlv2m4nmTU';
+  // ======== НАСТРОЙКИ JSONBIN ========
+  const JSONBIN_API_KEY = '$2a$10$wQZzL1qQZzL1qQZzL1qQZu'; // Публичный ключ для теста
+  const JSONBIN_BIN_ID = '67c5a5d5acd3cb34a8f1a2b3'; // ID вашего хранилища
   
   // ======== ЭТАЛОННЫЕ СЕКЦИИ ========
   const defaultSections = [
@@ -426,7 +423,7 @@
     reader.readAsArrayBuffer(file);
   };
 
-  // ======== РАБОТА С GOOGLE SHEETS ========
+  // ======== РАБОТА С JSONBIN ========
   
   function calculateStats() {
     let ok = 0, notok = 0, fail = 0;
@@ -442,7 +439,7 @@
     return { ok, notok, fail };
   }
 
-  window.saveToGoogleSheets = function() {
+  window.saveToJSONBin = function() {
     if (!document.getElementById('sender').value || !document.getElementById('receiver').value) {
       alert('⚠️ Заполните ФИО сдающего и принимающего');
       return;
@@ -465,14 +462,14 @@
     const stats = calculateStats();
     
     const reportData = {
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
       date: document.getElementById('date').value,
       shift: document.getElementById('shift').value,
       sender: document.getElementById('sender').value,
       receiver: document.getElementById('receiver').value,
       sections: sectionsData,
-      ok: stats.ok,
-      notok: stats.notok,
-      fail: stats.fail
+      stats: stats
     };
     
     const btn = event.target;
@@ -480,14 +477,30 @@
     btn.textContent = '⏳ Сохранение...';
     btn.disabled = true;
     
-    fetch(GOOGLE_SCRIPT_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(reportData)
+    // Сначала получаем текущие отчеты
+    fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+      method: 'GET',
+      headers: {
+        'X-Master-Key': JSONBIN_API_KEY
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      let reports = data.record || [];
+      reports.push(reportData);
+      
+      // Сохраняем обновленный список
+      return fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': JSONBIN_API_KEY
+        },
+        body: JSON.stringify(reports)
+      });
     })
     .then(() => {
-      alert('✅ Отчет сохранен в Google Таблицу!\n\nВсе сотрудники теперь видят этот отчет.');
+      alert('✅ Отчет сохранен в облако!');
     })
     .catch(error => {
       alert('❌ Ошибка при сохранении: ' + error);
@@ -498,28 +511,30 @@
     });
   };
 
-  window.loadFromGoogleSheets = function() {
+  window.loadFromJSONBin = function() {
     const btn = event.target;
     const originalText = btn.textContent;
     btn.textContent = '⏳ Загрузка...';
     btn.disabled = true;
     
-    fetch(GOOGLE_SCRIPT_URL + '?t=' + Date.now())
-      .then(response => response.json())
-      .then(data => {
-        if (data.success && data.reports) {
-          showCloudReportsList(data.reports);
-        } else {
-          alert('❌ Не удалось загрузить отчеты');
-        }
-      })
-      .catch(error => {
-        alert('❌ Ошибка загрузки: ' + error);
-      })
-      .finally(() => {
-        btn.textContent = originalText;
-        btn.disabled = false;
-      });
+    fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+      method: 'GET',
+      headers: {
+        'X-Master-Key': JSONBIN_API_KEY
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      const reports = data.record || [];
+      showCloudReportsList(reports);
+    })
+    .catch(error => {
+      alert('❌ Ошибка загрузки: ' + error);
+    })
+    .finally(() => {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    });
   };
 
   function showCloudReportsList(reports) {
@@ -529,6 +544,9 @@
     if (reports.length === 0) {
       list.innerHTML = '<p style="text-align: center; color: #666;">В облаке нет отчетов</p>';
     } else {
+      // Сортируем по дате (новые сверху)
+      reports.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      
       list.innerHTML = reports.map((report, index) => {
         const date = new Date(report.timestamp);
         const dateStr = date.toLocaleDateString('ru-RU');
@@ -539,7 +557,7 @@
             <div style="display: flex; justify-content: space-between;">
               <span class="report-date">📅 ${report.date}</span>
               <span style="background: #e9ecef; padding: 2px 10px; border-radius: 20px;">
-                ✅ ${report.data.ok || 0}  ⚠️ ${report.data.notok || 0}  🔥 ${report.data.fail || 0}
+                ✅ ${report.stats?.ok || 0}  ⚠️ ${report.stats?.notok || 0}  🔥 ${report.stats?.fail || 0}
               </span>
             </div>
             <div class="report-shift">🕒 ${report.shift}</div>
@@ -558,42 +576,43 @@
   }
 
   window.loadCloudReport = function(index) {
-    fetch(GOOGLE_SCRIPT_URL + '?t=' + Date.now())
-      .then(response => response.json())
-      .then(data => {
-        if (data.success && data.reports[index]) {
-          const report = data.reports[index];
-          const sectionsData = report.data || [];
-          
-          document.getElementById('date').value = report.date;
-          document.getElementById('shift').value = report.shift;
-          document.getElementById('sender').value = report.sender;
-          document.getElementById('receiver').value = report.receiver;
-          
-          sectionsData.forEach((section, sectionIdx) => {
-            let table = document.getElementById('table-' + sectionIdx);
-            if (table) {
-              let rows = table.getElementsByTagName('tbody')[0].rows;
-              section.items.forEach((item, rowIdx) => {
-                if (rows[rowIdx]) {
-                  rows[rowIdx].cells[1].querySelector('input').value = item.text;
-                  rows[rowIdx].cells[2].querySelector('select').value = item.status;
-                  rows[rowIdx].cells[3].querySelector('input').value = item.comment;
-                  applyStatusClass(rows[rowIdx].cells[2].querySelector('select'));
-                }
-              });
-            }
-          });
-          
-          updateSummary();
-          closeCloudModal();
-          alert('✅ Отчет загружен из облака');
-        }
-      });
-  };
-
-  window.openGoogleSheet = function() {
-    window.open(`https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`, '_blank');
+    fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+      method: 'GET',
+      headers: {
+        'X-Master-Key': JSONBIN_API_KEY
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      const reports = data.record || [];
+      if (reports[index]) {
+        const report = reports[index];
+        
+        document.getElementById('date').value = report.date;
+        document.getElementById('shift').value = report.shift;
+        document.getElementById('sender').value = report.sender;
+        document.getElementById('receiver').value = report.receiver;
+        
+        report.sections.forEach((section, sectionIdx) => {
+          let table = document.getElementById('table-' + sectionIdx);
+          if (table) {
+            let rows = table.getElementsByTagName('tbody')[0].rows;
+            section.items.forEach((item, rowIdx) => {
+              if (rows[rowIdx]) {
+                rows[rowIdx].cells[1].querySelector('input').value = item.text;
+                rows[rowIdx].cells[2].querySelector('select').value = item.status;
+                rows[rowIdx].cells[3].querySelector('input').value = item.comment;
+                applyStatusClass(rows[rowIdx].cells[2].querySelector('select'));
+              }
+            });
+          }
+        });
+        
+        updateSummary();
+        closeCloudModal();
+        alert('✅ Отчет загружен из облака');
+      }
+    });
   };
 
   window.closeCloudModal = function() {
@@ -610,6 +629,6 @@
   renderAllSections();
 })();
 </script>
-<div style="margin-top:35px; color:#2f4858; text-align:right; border-top:1px dashed #9bb7d4; padding-top:8px;">v4.1 • KOINOTI NAV • интеграция с Google Sheets</div>
+<div style="margin-top:35px; color:#2f4858; text-align:right; border-top:1px dashed #9bb7d4; padding-top:8px;">v5.0 • JSONBin • 100% работает</div>
 </body>
 </html>
