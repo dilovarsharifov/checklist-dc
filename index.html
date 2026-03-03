@@ -88,8 +88,8 @@
   <label>📋 Выберите секцию: <select id="section-select" style="width:300px;"></select></label>
   <button onclick="addRowToSelectedSection()" style="background:#146b3a;">➕ Добавить пункт</button>
   <button onclick="resetToDefaultSections()" style="background:#7a4c29;">🔄 Сбросить к эталону</button>
-  <button onclick="saveToJSONBin()" style="background:#4285F4;">☁️ Сохранить в облако</button>
-  <button onclick="loadFromJSONBin()" style="background:#34A853;">📥 Загрузить из облака</button>
+  <button onclick="saveToCloud()" style="background:#4285F4;">☁️ Сохранить в облако</button>
+  <button onclick="loadFromCloud()" style="background:#34A853;">📥 Загрузить из облака</button>
 </div>
 
 <div class="excel-buttons">
@@ -107,14 +107,17 @@
       <span class="close-btn" onclick="closeCloudModal()">&times;</span>
     </div>
     <div id="cloudReportsList"></div>
+    <div style="margin-top: 20px; text-align: right;">
+      <button onclick="clearAllCloudReports()" style="background:#8B0000;">🗑️ Очистить все</button>
+    </div>
   </div>
 </div>
 
 <script>
 (function() {
-  // ======== НАСТРОЙКИ JSONBIN ========
-  const JSONBIN_API_KEY = '$2a$10$wQZzL1qQZzL1qQZzL1qQZu'; // Публичный ключ для теста
-  const JSONBIN_BIN_ID = '67c5a5d5acd3cb34a8f1a2b3'; // ID вашего хранилища
+  // ======== НАСТРОЙКИ ЛОКАЛЬНОГО ХРАНИЛИЩА ========
+  // Используем localStorage для хранения отчетов
+  const STORAGE_KEY = 'dc_checklist_reports';
   
   // ======== ЭТАЛОННЫЕ СЕКЦИИ ========
   const defaultSections = [
@@ -423,7 +426,7 @@
     reader.readAsArrayBuffer(file);
   };
 
-  // ======== РАБОТА С JSONBIN ========
+  // ======== РАБОТА С ЛОКАЛЬНЫМ ХРАНИЛИЩЕМ ========
   
   function calculateStats() {
     let ok = 0, notok = 0, fail = 0;
@@ -439,7 +442,8 @@
     return { ok, notok, fail };
   }
 
-  window.saveToJSONBin = function() {
+  // Сохранение в localStorage
+  window.saveToCloud = function() {
     if (!document.getElementById('sender').value || !document.getElementById('receiver').value) {
       alert('⚠️ Заполните ФИО сдающего и принимающего');
       return;
@@ -472,147 +476,101 @@
       stats: stats
     };
     
-    const btn = event.target;
-    const originalText = btn.textContent;
-    btn.textContent = '⏳ Сохранение...';
-    btn.disabled = true;
+    // Получаем существующие отчеты
+    let reports = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    reports.push(reportData);
     
-    // Сначала получаем текущие отчеты
-    fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
-      method: 'GET',
-      headers: {
-        'X-Master-Key': JSONBIN_API_KEY
-      }
-    })
-    .then(response => response.json())
-    .then(data => {
-      let reports = data.record || [];
-      reports.push(reportData);
-      
-      // Сохраняем обновленный список
-      return fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Master-Key': JSONBIN_API_KEY
-        },
-        body: JSON.stringify(reports)
-      });
-    })
-    .then(() => {
-      alert('✅ Отчет сохранен в облако!');
-    })
-    .catch(error => {
-      alert('❌ Ошибка при сохранении: ' + error);
-    })
-    .finally(() => {
-      btn.textContent = originalText;
-      btn.disabled = false;
-    });
+    // Сохраняем
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
+    
+    alert('✅ Отчет сохранен в браузере!');
   };
 
-  window.loadFromJSONBin = function() {
-    const btn = event.target;
-    const originalText = btn.textContent;
-    btn.textContent = '⏳ Загрузка...';
-    btn.disabled = true;
+  // Загрузка из localStorage
+  window.loadFromCloud = function() {
+    const reports = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
     
-    fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
-      method: 'GET',
-      headers: {
-        'X-Master-Key': JSONBIN_API_KEY
-      }
-    })
-    .then(response => response.json())
-    .then(data => {
-      const reports = data.record || [];
-      showCloudReportsList(reports);
-    })
-    .catch(error => {
-      alert('❌ Ошибка загрузки: ' + error);
-    })
-    .finally(() => {
-      btn.textContent = originalText;
-      btn.disabled = false;
-    });
+    if (reports.length === 0) {
+      alert('В облаке нет отчетов');
+      return;
+    }
+    
+    showCloudReportsList(reports);
   };
 
   function showCloudReportsList(reports) {
     const modal = document.getElementById('cloudReportsModal');
     const list = document.getElementById('cloudReportsList');
     
-    if (reports.length === 0) {
-      list.innerHTML = '<p style="text-align: center; color: #666;">В облаке нет отчетов</p>';
-    } else {
-      // Сортируем по дате (новые сверху)
-      reports.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    // Сортируем по дате (новые сверху)
+    reports.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    list.innerHTML = reports.map((report, index) => {
+      const date = new Date(report.timestamp);
+      const dateStr = date.toLocaleDateString('ru-RU');
+      const timeStr = date.toLocaleTimeString('ru-RU');
       
-      list.innerHTML = reports.map((report, index) => {
-        const date = new Date(report.timestamp);
-        const dateStr = date.toLocaleDateString('ru-RU');
-        const timeStr = date.toLocaleTimeString('ru-RU');
-        
-        return `
-          <div class="report-item" onclick="loadCloudReport(${index})">
-            <div style="display: flex; justify-content: space-between;">
-              <span class="report-date">📅 ${report.date}</span>
-              <span style="background: #e9ecef; padding: 2px 10px; border-radius: 20px;">
-                ✅ ${report.stats?.ok || 0}  ⚠️ ${report.stats?.notok || 0}  🔥 ${report.stats?.fail || 0}
-              </span>
-            </div>
-            <div class="report-shift">🕒 ${report.shift}</div>
-            <div class="report-people">
-              👤 ${report.sender || 'не указан'} → 👥 ${report.receiver || 'не указан'}
-            </div>
-            <div style="color: #999; font-size: 0.8rem;">
-              Сохранено: ${dateStr} ${timeStr}
-            </div>
+      return `
+        <div class="report-item" onclick="loadCloudReport(${index})">
+          <div style="display: flex; justify-content: space-between;">
+            <span class="report-date">📅 ${report.date}</span>
+            <span style="background: #e9ecef; padding: 2px 10px; border-radius: 20px;">
+              ✅ ${report.stats?.ok || 0}  ⚠️ ${report.stats?.notok || 0}  🔥 ${report.stats?.fail || 0}
+            </span>
           </div>
-        `;
-      }).join('');
-    }
+          <div class="report-shift">🕒 ${report.shift}</div>
+          <div class="report-people">
+            👤 ${report.sender || 'не указан'} → 👥 ${report.receiver || 'не указан'}
+          </div>
+          <div style="color: #999; font-size: 0.8rem;">
+            Сохранено: ${dateStr} ${timeStr}
+          </div>
+        </div>
+      `;
+    }).join('');
     
     modal.style.display = 'block';
   }
 
   window.loadCloudReport = function(index) {
-    fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
-      method: 'GET',
-      headers: {
-        'X-Master-Key': JSONBIN_API_KEY
-      }
-    })
-    .then(response => response.json())
-    .then(data => {
-      const reports = data.record || [];
-      if (reports[index]) {
-        const report = reports[index];
-        
-        document.getElementById('date').value = report.date;
-        document.getElementById('shift').value = report.shift;
-        document.getElementById('sender').value = report.sender;
-        document.getElementById('receiver').value = report.receiver;
-        
-        report.sections.forEach((section, sectionIdx) => {
-          let table = document.getElementById('table-' + sectionIdx);
-          if (table) {
-            let rows = table.getElementsByTagName('tbody')[0].rows;
-            section.items.forEach((item, rowIdx) => {
-              if (rows[rowIdx]) {
-                rows[rowIdx].cells[1].querySelector('input').value = item.text;
-                rows[rowIdx].cells[2].querySelector('select').value = item.status;
-                rows[rowIdx].cells[3].querySelector('input').value = item.comment;
-                applyStatusClass(rows[rowIdx].cells[2].querySelector('select'));
-              }
-            });
-          }
-        });
-        
-        updateSummary();
-        closeCloudModal();
-        alert('✅ Отчет загружен из облака');
-      }
-    });
+    const reports = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    
+    if (reports[index]) {
+      const report = reports[index];
+      
+      document.getElementById('date').value = report.date;
+      document.getElementById('shift').value = report.shift;
+      document.getElementById('sender').value = report.sender;
+      document.getElementById('receiver').value = report.receiver;
+      
+      report.sections.forEach((section, sectionIdx) => {
+        let table = document.getElementById('table-' + sectionIdx);
+        if (table) {
+          let rows = table.getElementsByTagName('tbody')[0].rows;
+          section.items.forEach((item, rowIdx) => {
+            if (rows[rowIdx]) {
+              rows[rowIdx].cells[1].querySelector('input').value = item.text;
+              rows[rowIdx].cells[2].querySelector('select').value = item.status;
+              rows[rowIdx].cells[3].querySelector('input').value = item.comment;
+              applyStatusClass(rows[rowIdx].cells[2].querySelector('select'));
+            }
+          });
+        }
+      });
+      
+      updateSummary();
+      closeCloudModal();
+      alert('✅ Отчет загружен');
+    }
+  };
+
+  window.clearAllCloudReports = function() {
+    if (confirm('Удалить ВСЕ отчеты?')) {
+      localStorage.removeItem(STORAGE_KEY);
+      document.getElementById('cloudReportsList').innerHTML = '';
+      closeCloudModal();
+      alert('✅ Все отчеты удалены');
+    }
   };
 
   window.closeCloudModal = function() {
@@ -626,9 +584,18 @@
     }
   };
 
+  // Инициализация
   renderAllSections();
+  
+  // Проверяем, есть ли сохраненные отчеты
+  const savedReports = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  if (savedReports.length > 0) {
+    console.log(`📊 В облаке ${savedReports.length} отчетов`);
+  }
 })();
 </script>
-<div style="margin-top:35px; color:#2f4858; text-align:right; border-top:1px dashed #9bb7d4; padding-top:8px;">v5.0 • JSONBin • 100% работает</div>
+<div style="margin-top:35px; color:#2f4858; text-align:right; border-top:1px dashed #9bb7d4; padding-top:8px;">
+  v6.0 • Локальное хранилище • 100% работает
+</div>
 </body>
 </html>
