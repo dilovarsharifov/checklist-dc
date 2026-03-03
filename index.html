@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>CheckList DC KOINOTI NAV</title>
+<!-- SheetJS для Excel -->
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Roboto, sans-serif; margin: 20px; background: #e9edf2; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 0; table-layout: fixed; background: white; border-radius: 0 0 10px 10px; overflow: hidden; box-shadow: 0 4px 9px rgba(0,0,0,0.07); }
+  th, td { border: 1px solid #b4bcc7; padding: 8px 5px; vertical-align: middle; }
+  
+  /* Ширина столбцов: пункт 35%, статус 105px, комментарий 40% */
+  th:first-child, td:first-child { width: 35px; text-align: center; background-color: #f0f4fa; font-weight: 600; }
+  th:nth-child(2), td:nth-child(2) { width: 35%; }
+  th:nth-child(3), td:nth-child(3) { width: 105px; text-align: center; }
+  th:nth-child(4), td:nth-child(4) { width: 40%; }
+  
+  select, input { width: 100%; box-sizing: border-box; padding: 6px 5px; border: 1px solid #8f9bae; border-radius: 6px; font-size: 0.9rem; background: white; }
+  select { cursor: pointer; background-color: #ffffff; font-weight: 500; }
+  button { padding: 8px 16px; margin: 5px 5px 0 0; border: none; border-radius: 30px; background-color: #0b4b7a; color: white; font-weight: 600; cursor: pointer; box-shadow: 0 2px 5px rgba(0,30,60,0.2); transition: 0.15s; }
+  button:hover { background-color: #1f5e8f; transform: scale(1.02); }
+  .section-title { font-weight: 700; font-size: 1.2rem; color: white; padding: 12px 18px; border-radius: 12px 12px 0 0; background: linear-gradient(145deg, #1e3b5c, #2b5475); border-bottom: 2px solid gold; }
+  .section-container { margin-bottom: 28px; border-radius: 12px; }
+  .flex-row { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; background: white; padding: 16px 22px; border-radius: 40px; box-shadow: 0 4px 10px rgba(0,20,40,0.1); margin-bottom: 20px; border: 1px solid #ccd7e6; }
+  .banner { background: linear-gradient(135deg, #022b46, #124e77); color: white; padding: 22px 20px; border-radius: 50px; text-align: center; margin-bottom: 25px; border: 1px solid #99c7f0; }
+  .banner h1 { margin: 0; font-size: 30px; }
+  .excel-buttons { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 15px; }
+  .status-ok { background-color: #1f7840; color: white; font-weight: 700; border-radius: 20px; padding: 5px; }
+  .status-notok { background-color: #b6492e; color: white; font-weight: 700; border-radius: 20px; padding: 5px; }
+  .status-fail { background-color: #c06618; color: white; font-weight: 700; border-radius: 20px; padding: 5px; }
+  
+  /* Сводная таблица */
+  #summary-table { margin-bottom: 25px; min-width: 320px; background: white; border-radius: 30px; overflow: hidden; box-shadow: 0 8px 15px rgba(0,20,40,0.15); border: 2px solid #fff; }
+  #summary-table th { background: linear-gradient(145deg, #1e3f5c, #0b2b40); color: white; padding: 12px 15px; border-bottom: 3px solid #ffb347; }
+  #summary-table td { font-weight: 800; font-size: 1.8rem; color: #022b46; padding: 12px 10px; text-align: center; }
+  #summary-table td:first-child { color: #1f7840; } 
+  #summary-table td:nth-child(2) { color: #b6492e; } 
+  #summary-table td:last-child { color: #c06618; } 
+  
+  #section-select { width: 320px; padding: 10px 16px; border-radius: 40px; border: 1px solid #2a6090; }
+  .fusion-badge { background: #ffd966; color: #1d3b5c; border-radius: 30px; padding: 5px 18px; font-weight: bold; display: inline-block; margin-left: 15px; border: 1px solid #b68b30; }
+  
+  /* Модальное окно */
+  .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+  .modal-content { background: white; margin: 50px auto; padding: 20px; width: 80%; max-width: 900px; max-height: 80vh; overflow-y: auto; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .modal-header h2 { margin: 0; color: #022b46; }
+  .close-btn { font-size: 30px; cursor: pointer; color: #666; }
+  .close-btn:hover { color: #000; }
+  .report-item { padding: 15px; border: 1px solid #ddd; margin-bottom: 10px; border-radius: 10px; cursor: pointer; transition: 0.2s; background: #f8f9fa; }
+  .report-item:hover { background: #e9ecef; transform: translateX(5px); }
+  .report-date { font-weight: bold; color: #0b4b7a; font-size: 1.1rem; }
+  .report-shift { color: #666; margin-left: 10px; }
+  .report-people { color: #888; font-size: 0.9rem; margin-top: 5px; }
+</style>
+</head>
+<body>
+
+<div class="banner">
+  <h1>⚡ CheckList DC KOINOTI NAV ⚡</h1>
+  <p>приём/сдача смены • 1 корпус • интегрированная инфраструктура</p>
+</div>
+
+<!-- Сводная таблица -->
+<table id="summary-table">
+  <thead><tr><th>✅ OK</th><th>⚠️ NOT OK</th><th>🔥 Авария</th></tr></thead>
+  <tbody><tr><td id="sum-ok">0</td><td id="sum-notok">0</td><td id="sum-fail">0</td></tr></tbody>
+</table>
+
+<!-- Панель смены -->
+<div class="flex-row">
+  <label>📅 Дата: <input type="date" id="date" style="width:140px;" value="2025-04-02"></label>
+  <label>🕒 Смена: 
+    <select id="shift" style="width:190px;">
+      <option value="Дневная (8:30-18:30)">Дневная (8:30-18:30)</option>
+      <option value="Ночная (18:30-8:30)" selected>Ночная (18:30-8:30)</option>
+    </select>
+  </label>
+  <label>👤 Сдающий: <input type="text" id="sender" placeholder="ФИО" style="width:150px;"></label>
+  <label>👥 Принимающий: <input type="text" id="receiver" placeholder="ФИО" style="width:150px;"></label>
+  <span class="fusion-badge">KOINOTI NAV</span>
+</div>
+
+<!-- Управление -->
+<div class="flex-row" style="background:#deeaf5;">
+  <label>📋 Выберите секцию: <select id="section-select" style="width:300px;"></select></label>
+  <button onclick="addRowToSelectedSection()" style="background:#146b3a;">➕ Добавить пункт</button>
+  <button onclick="resetToDefaultSections()" style="background:#7a4c29;">🔄 Сбросить к эталону</button>
+  <button onclick="saveToGoogleSheets()" style="background:#4285F4;">☁️ Сохранить в облако</button>
+  <button onclick="loadFromGoogleSheets()" style="background:#34A853;">📥 Загрузить из облака</button>
+</div>
+
+<div class="excel-buttons">
+  <button onclick="downloadExcel()">⬇️ Скачать Excel (XLSX)</button>
+  <input type="file" id="import-file" accept=".xlsx,.xls" onchange="importExcel(event)" style="border:1px solid #2a5f8a; padding:6px 15px; border-radius:40px;">
+</div>
+
+<div id="checklist-container"></div>
+
+<!-- Модальное окно для отчетов из облака -->
+<div id="cloudReportsModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>☁️ Отчеты из облака (Google Sheets)</h2>
+      <span class="close-btn" onclick="closeCloudModal()">&times;</span>
+    </div>
+    <div id="cloudReportsList"></div>
+    <div style="margin-top: 20px; text-align: right;">
+      <button onclick="openGoogleSheet()" style="background:#0F9D58;">📊 Открыть таблицу</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  // ======== ВАШИ ДАННЫЕ ========
+  const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxh2wZ3yBaYTthd8RfZBbUtPkZUUxwsJnTT_7OygFCwcbVryKgZsB06qVAwDSYHWRnM/exec';
+  const SPREADSHEET_ID = '1a0a_n0pD-EBc4ZZJZZk029cYtgkSOBVpYxlv2m4nmTU';
+  
+  // ======== ЭТАЛОННЫЕ СЕКЦИИ ========
+  const defaultSections = [
+    { name: "1. Общий осмотр помещения", color: "#1F4E79", items: [
+        "Чистота серверной",
+        "Чистота вспомогательных помещений (помещения инженеров, склад, коридоры)",
+        "Доступность аварийных выходов",
+        "Освещение работает корректно",
+        "Потолок и пол без повреждений",
+        "Кабельные трассы исправны, маркировка видна",
+        "Наличие знаков безопасности и инструкций"
+    ]},
+    { name: "2. Электропитание", color: "#1F7A1F", items: [
+        "Основные UPS включены и работают",
+        "Генераторы на резерве или включены",
+        "Проверка нагрузки и показаний PDU",
+        "Автоматы и предохранители исправны",
+        "Резервные линии питания готовы",
+        "Аварийные сигналы отсутствуют / зафиксированы"
+    ]},
+    { name: "3. Климат и вентиляция", color: "#3399CC", items: [
+        "Температура в залах в норме (по датчикам)",
+        "Влажность в пределах нормы",
+        "Кондиционеры работают корректно",
+        "Увлажнители и осушители исправны",
+        "Воздушные фильтры чистые / заменены по графику",
+        "Проверка сигнализации о перегреве или аварийном климате"
+    ]},
+    { name: "4. Серверное и сетевое оборудование", color: "#FF9933", items: [
+        "Все серверы включены",
+        "Индикаторы серверов в норме",
+        "Виртуальные машины работают",
+        "Коммутаторы и маршрутизаторы исправны",
+        "Проверка резервных каналов интернета",
+        "Кабельные соединения и маркировка",
+        "Логи событий оборудования проверены",
+        "Проверка RAID, дисков и резервных накопителей",
+        "Проверка сетевых портов и активности",
+        "Мониторинг серверов и сети активен"
+    ]},
+    { name: "5. Системы безопасности", color: "#CC3333", items: [
+        "Контроль доступа работает (карты, биометрия)",
+        "Камеры видеонаблюдения исправны",
+        "Сигнализация и тревожные кнопки работают",
+        "Журналы доступа проверены",
+        "Контроль состояния датчиков движения и дверей"
+    ]},
+    { name: "6. Пожарная безопасность", color: "#B3442C", items: [
+        "Пожарные датчики исправны",
+        "Системы оповещения и сирены работают",
+        "Пожарные рукава и огнетушители на месте",
+        "Планы эвакуации актуальны и видны"
+    ]},
+    { name: "7. Документация и отчётность", color: "#6A4E9B", items: [
+        "Журнал смен проверен",
+        "Показания оборудования внесены",
+        "Инциденты предыдущей смены обработаны / переданы",
+        "Акт приёма/сдачи смены подписан",
+        "Протоколы мониторинга за смену проверены"
+    ]},
+    { name: "8. Инциденты и особые задачи", color: "#B8662E", items: [
+        "Открытые тикеты проверены",
+        "Инструкции по текущим проблемам переданы смене",
+        "Согласование нестандартных событий с руководством",
+        "Проверка работы резервов (серверы, сети, питание)",
+        "Плановые работы и maintenance проверены",
+        "Мониторинг (температура, влажность, питание, сеть) активен",
+        "Примечания по наблюдениям и рекомендации"
+    ]}
+  ];
+
+  let sections = defaultSections.map(sec => ({ ...sec, items: [...sec.items] }));
+
+  function lightenColor(hex, percent) {
+    let num = parseInt(hex.replace("#",""), 16);
+    let r = Math.min((num >> 16) + percent, 255);
+    let g = Math.min(((num >> 8) & 0x00FF) + percent, 255);
+    let b = Math.min((num & 0x0000FF) + percent, 255);
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  function applyStatusClass(sel) {
+    sel.classList.remove("status-ok", "status-notok", "status-fail");
+    if (sel.value === "OK") sel.classList.add("status-ok");
+    else if (sel.value === "NOT OK") sel.classList.add("status-notok");
+    else if (sel.value === "Авария") sel.classList.add("status-fail");
+  }
+
+  function renumberTable(tbody) {
+    [...tbody.rows].forEach((row, i) => row.cells[0].textContent = i + 1);
+  }
+
+  function renderAllSections() {
+    const container = document.getElementById("checklist-container");
+    container.innerHTML = "";
+    const sectionSelect = document.getElementById("section-select");
+    sectionSelect.innerHTML = "";
+
+    sections.forEach((sec, idx) => {
+      const titleDiv = document.createElement("div");
+      titleDiv.className = "section-title";
+      titleDiv.style.background = `linear-gradient(90deg, ${sec.color}, ${lightenColor(sec.color, 40)})`;
+      titleDiv.textContent = sec.name;
+
+      const secDiv = document.createElement("div");
+      secDiv.className = "section-container";
+      secDiv.appendChild(titleDiv);
+
+      const table = document.createElement("table");
+      table.id = "table-" + idx;
+      const thead = table.createTHead().insertRow();
+      ["№", "Пункт проверки", "Статус", "Комментарий"].forEach(text => {
+        let th = document.createElement("th");
+        th.textContent = text;
+        thead.appendChild(th);
+      });
+
+      const tbody = document.createElement("tbody");
+      sec.items.forEach((itemText, rowIdx) => {
+        const row = tbody.insertRow();
+        row.insertCell(0).textContent = rowIdx + 1;
+
+        let cellItem = row.insertCell(1);
+        let inpItem = document.createElement("input");
+        inpItem.type = "text";
+        inpItem.style.width = "100%";
+        inpItem.value = itemText;
+        cellItem.appendChild(inpItem);
+
+        let cellStatus = row.insertCell(2);
+        let sel = document.createElement("select");
+        ["OK", "NOT OK", "Авария"].forEach(opt => {
+          let o = document.createElement("option");
+          o.value = o.textContent = opt;
+          sel.appendChild(o);
+        });
+        sel.value = "OK";
+        sel.onchange = function() { updateSummary(); applyStatusClass(this); };
+        applyStatusClass(sel);
+        cellStatus.appendChild(sel);
+
+        let cellComment = row.insertCell(3);
+        let inpComment = document.createElement("input");
+        inpComment.type = "text";
+        inpComment.style.width = "100%";
+        inpComment.placeholder = "комментарий...";
+        cellComment.appendChild(inpComment);
+      });
+
+      table.appendChild(tbody);
+      secDiv.appendChild(table);
+      container.appendChild(secDiv);
+
+      let option = document.createElement("option");
+      option.value = idx;
+      option.textContent = sec.name;
+      sectionSelect.appendChild(option);
+    });
+    updateSummary();
+  }
+
+  window.updateSummary = function() {
+    let ok = 0, notok = 0, fail = 0;
+    sections.forEach((_, idx) => {
+      let table = document.getElementById("table-" + idx);
+      if (!table) return;
+      [...table.getElementsByTagName("select")].forEach(sel => {
+        if (sel.value === "OK") { ok++; applyStatusClass(sel); }
+        else if (sel.value === "NOT OK") { notok++; applyStatusClass(sel); }
+        else if (sel.value === "Авария") { fail++; applyStatusClass(sel); }
+      });
+    });
+    document.getElementById("sum-ok").textContent = ok;
+    document.getElementById("sum-notok").textContent = notok;
+    document.getElementById("sum-fail").textContent = fail;
+  };
+
+  window.addRowToSelectedSection = function() {
+    let sIdx = document.getElementById("section-select").value;
+    if (sIdx === "") { alert("Выберите секцию"); return; }
+    let table = document.getElementById("table-" + sIdx);
+    if (!table) return;
+    let tbody = table.getElementsByTagName("tbody")[0];
+    let newRow = tbody.insertRow();
+    newRow.insertCell(0).textContent = tbody.rows.length;
+
+    let cellItem = newRow.insertCell(1);
+    let inpItem = document.createElement("input");
+    inpItem.type = "text";
+    inpItem.style.width = "100%";
+    inpItem.placeholder = "Новый пункт...";
+    cellItem.appendChild(inpItem);
+
+    let cellStatus = newRow.insertCell(2);
+    let sel = document.createElement("select");
+    ["OK", "NOT OK", "Авария"].forEach(opt => {
+      let o = document.createElement("option");
+      o.value = o.textContent = opt;
+      sel.appendChild(o);
+    });
+    sel.value = "OK";
+    sel.onchange = function() { updateSummary(); applyStatusClass(this); };
+    applyStatusClass(sel);
+    cellStatus.appendChild(sel);
+
+    let cellComment = newRow.insertCell(3);
+    let inpComment = document.createElement("input");
+    inpComment.type = "text";
+    inpComment.style.width = "100%";
+    inpComment.placeholder = "комментарий";
+    cellComment.appendChild(inpComment);
+
+    renumberTable(tbody);
+    updateSummary();
+  };
+
+  window.resetToDefaultSections = function() {
+    sections = defaultSections.map(sec => ({ ...sec, items: [...sec.items] }));
+    renderAllSections();
+  };
+
+  window.downloadExcel = function() {
+    const wb = XLSX.utils.book_new();
+    sections.forEach((sec, idx) => {
+      let table = document.getElementById("table-" + idx);
+      if (!table) return;
+      let tbody = table.getElementsByTagName("tbody")[0];
+      let rowsData = [["№", "Пункт проверки", "Статус", "Комментарий"]];
+      [...tbody.rows].forEach(row => {
+        rowsData.push([
+          row.cells[0].textContent,
+          row.cells[1].querySelector("input")?.value || "",
+          row.cells[2].querySelector("select")?.value || "",
+          row.cells[3].querySelector("input")?.value || ""
+        ]);
+      });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rowsData), sec.name.substring(0, 25));
+    });
+    let now = new Date();
+    let fileName = `DC_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}.xlsx`;
+    let wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    let blob = new Blob([wbout], { type: "application/octet-stream" });
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  window.importExcel = function(event) {
+    let file = event.target.files[0];
+    if (!file) return;
+    let reader = new FileReader();
+    reader.onload = function(ev) {
+      let wb = XLSX.read(new Uint8Array(ev.target.result), { type: "array" });
+      wb.SheetNames.forEach((sheetName, idx) => {
+        if (idx >= sections.length) return;
+        let ws = wb.Sheets[sheetName];
+        let jsonData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        if (jsonData.length < 2) return;
+        let table = document.getElementById("table-" + idx);
+        if (!table) return;
+        let tbody = table.getElementsByTagName("tbody")[0];
+        tbody.innerHTML = "";
+        for (let r = 1; r < jsonData.length; r++) {
+          let rowData = jsonData[r] || [];
+          let row = tbody.insertRow();
+          row.insertCell(0).textContent = rowData[0] || r;
+          
+          let cellItem = row.insertCell(1);
+          let inpItem = document.createElement("input");
+          inpItem.type = "text";
+          inpItem.style.width = "100%";
+          inpItem.value = rowData[1] || "";
+          cellItem.appendChild(inpItem);
+
+          let cellStatus = row.insertCell(2);
+          let sel = document.createElement("select");
+          ["OK", "NOT OK", "Авария"].forEach(opt => {
+            let o = document.createElement("option");
+            o.value = o.textContent = opt;
+            sel.appendChild(o);
+          });
+          let importedStatus = rowData[2] ? rowData[2].toString().trim() : "OK";
+          sel.value = ["OK", "NOT OK", "Авария"].includes(importedStatus) ? importedStatus : "OK";
+          sel.onchange = function() { updateSummary(); applyStatusClass(this); };
+          applyStatusClass(sel);
+          cellStatus.appendChild(sel);
+
+          let cellComment = row.insertCell(3);
+          let inpComment = document.createElement("input");
+          inpComment.type = "text";
+          inpComment.style.width = "100%";
+          inpComment.value = rowData[3] || "";
+          cellComment.appendChild(inpComment);
+        }
+        renumberTable(tbody);
+      });
+      updateSummary();
+      alert("✅ Данные импортированы из Excel.");
+      document.getElementById("import-file").value = "";
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // ======== РАБОТА С GOOGLE SHEETS ========
+  
+  function calculateStats() {
+    let ok = 0, notok = 0, fail = 0;
+    sections.forEach((_, idx) => {
+      let table = document.getElementById("table-" + idx);
+      if (!table) return;
+      [...table.getElementsByTagName("select")].forEach(sel => {
+        if (sel.value === "OK") ok++;
+        else if (sel.value === "NOT OK") notok++;
+        else if (sel.value === "Авария") fail++;
+      });
+    });
+    return { ok, notok, fail };
+  }
+
+  window.saveToGoogleSheets = function() {
+    if (!document.getElementById('sender').value || !document.getElementById('receiver').value) {
+      alert('⚠️ Заполните ФИО сдающего и принимающего');
+      return;
+    }
+    
+    const sectionsData = [];
+    document.querySelectorAll('.section-container').forEach(container => {
+      const sectionName = container.querySelector('.section-title').textContent;
+      const items = [];
+      container.querySelectorAll('tbody tr').forEach(row => {
+        items.push({
+          text: row.cells[1].querySelector('input').value,
+          status: row.cells[2].querySelector('select').value,
+          comment: row.cells[3].querySelector('input').value
+        });
+      });
+      sectionsData.push({ name: sectionName, items });
+    });
+    
+    const stats = calculateStats();
+    
+    const reportData = {
+      date: document.getElementById('date').value,
+      shift: document.getElementById('shift').value,
+      sender: document.getElementById('sender').value,
+      receiver: document.getElementById('receiver').value,
+      sections: sectionsData,
+      ok: stats.ok,
+      notok: stats.notok,
+      fail: stats.fail
+    };
+    
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.textContent = '⏳ Сохранение...';
+    btn.disabled = true;
+    
+    fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reportData)
+    })
+    .then(() => {
+      alert('✅ Отчет сохранен в Google Таблицу!\n\nВсе сотрудники теперь видят этот отчет.');
+    })
+    .catch(error => {
+      alert('❌ Ошибка при сохранении: ' + error);
+    })
+    .finally(() => {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    });
+  };
+
+  window.loadFromGoogleSheets = function() {
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.textContent = '⏳ Загрузка...';
+    btn.disabled = true;
+    
+    fetch(GOOGLE_SCRIPT_URL + '?t=' + Date.now())
+      .then(response => response.json())
+      .then(data => {
+        if (data.success && data.reports) {
+          showCloudReportsList(data.reports);
+        } else {
+          alert('❌ Не удалось загрузить отчеты');
+        }
+      })
+      .catch(error => {
+        alert('❌ Ошибка загрузки: ' + error);
+      })
+      .finally(() => {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      });
+  };
+
+  function showCloudReportsList(reports) {
+    const modal = document.getElementById('cloudReportsModal');
+    const list = document.getElementById('cloudReportsList');
+    
+    if (reports.length === 0) {
+      list.innerHTML = '<p style="text-align: center; color: #666;">В облаке нет отчетов</p>';
+    } else {
+      list.innerHTML = reports.map((report, index) => {
+        const date = new Date(report.timestamp);
+        const dateStr = date.toLocaleDateString('ru-RU');
+        const timeStr = date.toLocaleTimeString('ru-RU');
+        
+        return `
+          <div class="report-item" onclick="loadCloudReport(${index})">
+            <div style="display: flex; justify-content: space-between;">
+              <span class="report-date">📅 ${report.date}</span>
+              <span style="background: #e9ecef; padding: 2px 10px; border-radius: 20px;">
+                ✅ ${report.data.ok || 0}  ⚠️ ${report.data.notok || 0}  🔥 ${report.data.fail || 0}
+              </span>
+            </div>
+            <div class="report-shift">🕒 ${report.shift}</div>
+            <div class="report-people">
+              👤 ${report.sender || 'не указан'} → 👥 ${report.receiver || 'не указан'}
+            </div>
+            <div style="color: #999; font-size: 0.8rem;">
+              Сохранено: ${dateStr} ${timeStr}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    
+    modal.style.display = 'block';
+  }
+
+  window.loadCloudReport = function(index) {
+    fetch(GOOGLE_SCRIPT_URL + '?t=' + Date.now())
+      .then(response => response.json())
+      .then(data => {
+        if (data.success && data.reports[index]) {
+          const report = data.reports[index];
+          const sectionsData = report.data || [];
+          
+          document.getElementById('date').value = report.date;
+          document.getElementById('shift').value = report.shift;
+          document.getElementById('sender').value = report.sender;
+          document.getElementById('receiver').value = report.receiver;
+          
+          sectionsData.forEach((section, sectionIdx) => {
+            let table = document.getElementById('table-' + sectionIdx);
+            if (table) {
+              let rows = table.getElementsByTagName('tbody')[0].rows;
+              section.items.forEach((item, rowIdx) => {
+                if (rows[rowIdx]) {
+                  rows[rowIdx].cells[1].querySelector('input').value = item.text;
+                  rows[rowIdx].cells[2].querySelector('select').value = item.status;
+                  rows[rowIdx].cells[3].querySelector('input').value = item.comment;
+                  applyStatusClass(rows[rowIdx].cells[2].querySelector('select'));
+                }
+              });
+            }
+          });
+          
+          updateSummary();
+          closeCloudModal();
+          alert('✅ Отчет загружен из облака');
+        }
+      });
+  };
+
+  window.openGoogleSheet = function() {
+    window.open(`https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`, '_blank');
+  };
+
+  window.closeCloudModal = function() {
+    document.getElementById('cloudReportsModal').style.display = 'none';
+  };
+
+  window.onclick = function(event) {
+    const modal = document.getElementById('cloudReportsModal');
+    if (event.target == modal) {
+      modal.style.display = 'none';
+    }
+  };
+
+  renderAllSections();
+})();
+</script>
+<div style="margin-top:35px; color:#2f4858; text-align:right; border-top:1px dashed #9bb7d4; padding-top:8px;">
+  v4.1 • KOINOTI NAV • интеграция с Google Sheets
+</div>
+</body>
+</html>
